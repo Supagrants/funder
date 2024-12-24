@@ -105,8 +105,8 @@ async def process_application(request: Request, application: ApplicationData = N
             app_data = json.loads(application.application)
             logger.info(f"Parsed application data: {app_data}")
 
-            # Extract user information
-            user_id = app_data[0]['meta_data'].get('user_id') if app_data else None
+            # Extract user information directly from the dictionary
+            user_id = app_data['meta_data'].get('user_id') if 'meta_data' in app_data else None
             chat_id = 2322529093  # Funder's chat ID
             logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
 
@@ -115,15 +115,13 @@ async def process_application(request: Request, application: ApplicationData = N
                 return {"status": "error", "message": "Invalid application data"}
 
             # Format application for review
-            application_summary = []
-            for item in app_data:
-                application_summary.append(
-                    f"Document: {item['name']}\n"
-                    f"Content: {item['content'][:500]}...\n"  # First 500 chars
-                    f"Created: {item['created_at']}\n"
-                    f"Type: {item['document_type']}\n"
-                    f"---"
-                )
+            application_summary = (
+                f"Document: {app_data['name']}\n"
+                f"Content: {app_data['content'][:500]}...\n"  # First 500 chars
+                f"Created: {app_data['created_at']}\n"
+                f"Type: {app_data['document_type']}\n"
+                f"---"
+            )
             logger.info(f"Application Summary: {application_summary}")
 
             # Return a success response
