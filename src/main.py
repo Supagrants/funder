@@ -89,6 +89,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.api_route("/submit/", methods=["GET", "POST"])
+@app.api_route("/submit/", methods=["GET", "POST"])
 async def process_application(request: Request, application: ApplicationData = None):
     try:
         if request.method == "GET":
@@ -96,13 +97,20 @@ async def process_application(request: Request, application: ApplicationData = N
             return {"status": "success", "message": "GET request received", "data": None}
 
         if request.method == "POST":
-            # Handle POST request as before
+            logger.info("POST request received")
+
+            # Log the raw application object
+            logger.info(f"Raw application data: {application}")
+
+            # Parse the stringified application data
             app_data = json.loads(application.application)
-            
+            logger.info(f"Parsed application data: {app_data}")
+
             # Extract user information
             user_id = app_data[0]['meta_data'].get('user_id') if app_data else None
             chat_id = 2322529093  # Funder's chat ID
-            
+            logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
+
             if not user_id or not chat_id:
                 logger.error("Missing user_id or chat_id in application")
                 return {"status": "error", "message": "Invalid application data"}
@@ -117,9 +125,7 @@ async def process_application(request: Request, application: ApplicationData = N
                     f"Type: {item['document_type']}\n"
                     f"---"
                 )
-
-            # Log received application data for debugging
-            logger.info(f"Received application data: {application_summary}")
+            logger.info(f"Application Summary: {application_summary}")
 
             # Return a success response
             return {
@@ -127,9 +133,9 @@ async def process_application(request: Request, application: ApplicationData = N
                 "message": "Application received and being processed",
                 "data": application_summary,
             }
-        
-    except json.JSONDecodeError:
-        logger.error("Failed to parse application JSON")
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse application JSON: {str(e)}")
         return {"status": "error", "message": "Invalid application format"}
     except Exception as e:
         logger.error(f"Error processing application: {str(e)}")
