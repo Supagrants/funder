@@ -27,6 +27,19 @@ load_dotenv()
 # Setup logging
 logger = setup_logging(log_file='logs/main.log', level=logging.INFO)
 
+
+# Create Pydantic model for application data
+class ApplicationData(BaseModel):
+    application: str  # This will hold the stringified application JSON
+
+class TelegramUpdate(BaseModel):
+    update_id: int
+    message: dict
+
+class ApiCall(BaseModel):
+    token: str
+
+
 # Initialize Application with increased connection pool size
 application = (
     Application.builder()
@@ -75,15 +88,15 @@ app = FastAPI(lifespan=lifespan)
 
 
 
-@app.post("/submit")
-async def process_application(application: Application, background_tasks: BackgroundTasks):
+app.post("/submit")
+async def process_application(application: ApplicationData, background_tasks: BackgroundTasks):
     try:
         # Parse the stringified application data
         app_data = json.loads(application.application)
         
         # Extract user information
         user_id = app_data[0]['meta_data'].get('user_id') if app_data else None
-        chat_id = 2322529093
+        chat_id = 2322529093  # Funder's chat ID
         
         if not user_id or not chat_id:
             logger.error("Missing user_id or chat_id in application")
