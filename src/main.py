@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from telegram.ext import Application
 from dotenv import load_dotenv
 import json
-from chat import router, knowledge, crawler
+from chat import router, knowledge
 from utils.telegram_helper import TelegramHelper
 from utils.logging_helper import setup_logging
 from config import TELEGRAM_BOT, TELEGRAM_BOT_HANDLE
