@@ -88,54 +88,45 @@ app = FastAPI(lifespan=lifespan)
 
 
 
-app.post("/submit/")
-async def process_application(application: ApplicationData, background_tasks: BackgroundTasks):
+@app.api_route("/submit/", methods=["GET", "POST"])
+async def process_application(request: Request, application: ApplicationData = None):
     try:
-        # Parse the stringified application data
-        app_data = json.loads(application.application)
-        
-        # Extract user information
-        user_id = app_data[0]['meta_data'].get('user_id') if app_data else None
-        chat_id = 2322529093  # Funder's chat ID
-        
-        if not user_id or not chat_id:
-            logger.error("Missing user_id or chat_id in application")
-            return {"status": "error", "message": "Invalid application data"}
+        if request.method == "GET":
+            # Respond with a simple message for GET requests
+            return {"status": "success", "message": "GET request received", "data": None}
 
-        async def telegram_reply(msg, reply_markup=None):
-            await tg.send_message_with_retry(chat_id, msg, reply_markup=reply_markup)
+        if request.method == "POST":
+            # Handle POST request as before
+            app_data = json.loads(application.application)
+            
+            # Extract user information
+            user_id = app_data[0]['meta_data'].get('user_id') if app_data else None
+            chat_id = 2322529093  # Funder's chat ID
+            
+            if not user_id or not chat_id:
+                logger.error("Missing user_id or chat_id in application")
+                return {"status": "error", "message": "Invalid application data"}
 
-        # Format application for review
-        application_summary = []
-        for item in app_data:
-            application_summary.append(
-                f"Document: {item['name']}\n"
-                f"Content: {item['content'][:500]}...\n"  # First 500 chars
-                f"Created: {item['created_at']}\n"
-                f"Type: {item['document_type']}\n"
-                f"---"
-            )
+            # Format application for review
+            application_summary = []
+            for item in app_data:
+                application_summary.append(
+                    f"Document: {item['name']}\n"
+                    f"Content: {item['content'][:500]}...\n"  # First 500 chars
+                    f"Created: {item['created_at']}\n"
+                    f"Type: {item['document_type']}\n"
+                    f"---"
+                )
 
-        # Notify agent about new application
-        message = (
-            f"📝 New Grant Application Received\n\n"
-            f"From User ID: {user_id}\n"
-            f"Application Items: {len(app_data)}\n\n"
-            f"Application Content:\n"
-            f"{''.join(application_summary)}"
-        )
+            # Log received application data for debugging
+            logger.info(f"Received application data: {application_summary}")
 
-        # Process with next_action
-        await router.next_action(
-            message, 
-            user_id,
-            chat_id,
-            mongo=None,
-            reply_function=telegram_reply,
-            processing_id=None
-        )
-
-        return {"status": "success", "message": "Application received and being processed"}
+            # Return a success response
+            return {
+                "status": "success",
+                "message": "Application received and being processed",
+                "data": application_summary,
+            }
         
     except json.JSONDecodeError:
         logger.error("Failed to parse application JSON")
