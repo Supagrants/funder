@@ -10,7 +10,7 @@ from utils.llm_helper import get_embedder
 # Setup logging
 logger = logging.getLogger(__name__)
 
-class GrantKnowledgeBase(AgentKnowledge):
+class CustomKnowledgeBase(AgentKnowledge):
     """Knowledge base for managing grant reviews."""
 
     def __init__(self, sources: List[AgentKnowledge], vector_db: PgVector):
