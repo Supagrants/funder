@@ -105,31 +105,52 @@ async def process_application(request: Request, application: ApplicationData = N
             app_data = json.loads(application.application)
             logger.info(f"Parsed application data: {app_data}")
 
-            # Extract user information directly from the dictionary
+            # Extract user information
             user_id = app_data['meta_data'].get('user_id') if 'meta_data' in app_data else None
-            chat_id = 2322529093  # Funder's chat ID
-            logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
+            original_chat_id = app_data['meta_data'].get('chat_id') if 'meta_data' in app_data else None
+            message_id = app_data.get('id')
 
-            if not user_id or not chat_id:
-                logger.error("Missing user_id or chat_id in application")
+            funder_chat_id = 2322529093  # Hardcoded funder's chat ID
+            logger.info(f"User ID: {user_id}, Original Chat ID: {original_chat_id}, Funder Chat ID: {funder_chat_id}, Message ID: {message_id}")
+
+            if not user_id:
+                logger.error("Missing user_id in application")
                 return {"status": "error", "message": "Invalid application data"}
 
-            # Format application for review
-            application_summary = (
+            # Format application text for funder
+            text = (
+                f"📝 New Grant Application Received\n\n"
+                f"From User ID: {user_id}\n"
+                f"Application ID: {message_id}\n"
                 f"Document: {app_data['name']}\n"
                 f"Content: {app_data['content'][:500]}...\n"  # First 500 chars
                 f"Created: {app_data['created_at']}\n"
                 f"Type: {app_data['document_type']}\n"
-                f"---"
             )
-            logger.info(f"Application Summary: {application_summary}")
+            logger.info(f"Formatted text for next action: {text}")
 
-            # Return a success response
-            return {
-                "status": "success",
-                "message": "Application received and being processed",
-                "data": application_summary,
+            # Define a reply function for the funder
+            async def telegram_reply(msg, reply_markup=None):
+                await tg.send_message_with_retry(funder_chat_id, msg, reply_markup=reply_markup)
+
+            # Prepare parameters for next_action
+            params = {
+                "user": user_id,
+                "chat_id": funder_chat_id,  # Route to funder's chat
+                "message_id": message_id
             }
+
+            # Call the router's next_action function for the funder
+            await router.next_action(
+                text,
+                params['user'],
+                params['chat_id'],  # Send to funder's chat
+                mongo=None,
+                reply_function=telegram_reply,
+                processing_id=params['message_id']
+            )
+
+            return {"status": "success", "message": "Application received and sent to the funder"}
 
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse application JSON: {str(e)}")
@@ -137,7 +158,6 @@ async def process_application(request: Request, application: ApplicationData = N
     except Exception as e:
         logger.error(f"Error processing application: {str(e)}")
         return {"status": "error", "message": "Internal server error"}
-
 
 if __name__ == "__main__":
     uvicorn.run(
