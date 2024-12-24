@@ -1,0 +1,43 @@
+python-dotenv
+motor
+pytz
+pymongo[svr]
+dnspython
+aiohttp
+pydantic
+uvicorn
+fastapi
+
+# agents_tasks service
+openai
+anthropic
+google-generativeai
+requests_oauthlib
+
+# telegram
+python-telegram-bot
+chatgpt-md-converter
+
+# phitdata
+phidata
+duckduckgo-search
+pgvector
+psycopg[binary]
+pypdf
+sqlalchemy
+psycopg2
+PyPDF2
+
+# crawler
+crawl4ai==0.4.1
+firecrawl-py
+pygithub
+markdown
+beautifulsoup4
+
+# file
+pdfminer.six
+pdf2image 
+pytesseract
+
+ # logging

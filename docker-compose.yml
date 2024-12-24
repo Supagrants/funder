@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  pancake:
+    container_name: pancake
+    image: pancake
+    restart: unless-stopped
+    environment:
+      TIMEOUT: 1800
+      MAX_WORKERS: 1
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TELEGRAM_BOT: ${TELEGRAM_BOT}
+      POSTGRES_CONNECTION: ${POSTGRES_CONNECTION}
+    ports:
+      - "6010:80"
