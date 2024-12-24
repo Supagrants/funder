@@ -23,7 +23,7 @@ async def next_action(msg: str, user_id: str, chat_id: str, mongo, reply_functio
         if "New Grant Application Received" in msg:
             try:
                 # Get application details from message
-                application_data = await knowledge.grant_knowledge_base.get_application_data(msg)
+                application_data = await knowledge.knowledge_base.get_application_data(msg)
                 
                 # Create review context
                 context = f"""
@@ -46,7 +46,7 @@ async def next_action(msg: str, user_id: str, chat_id: str, mongo, reply_functio
         else:
             # Get existing review history
             try:
-                review_history = await knowledge.grant_knowledge_base.get_reviews(user_id)
+                review_history = await knowledge.knowledge_base.get_reviews(user_id)
                 context = f"""
                 Previous Reviews:
                 {review_history}
@@ -75,7 +75,7 @@ async def next_action(msg: str, user_id: str, chat_id: str, mongo, reply_functio
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
             read_chat_history=True,
-            knowledge=knowledge.grant_knowledge_base,
+            knowledge=knowledge.knowledge_base,
             search_knowledge=True,
             tools=[
                 GithubCommitStats(),  # For reviewing code contributions
@@ -90,7 +90,7 @@ async def next_action(msg: str, user_id: str, chat_id: str, mongo, reply_functio
 
         # Save the review
         if "New Grant Application Received" in msg:
-            await knowledge.grant_knowledge_base.add_review(
+            await knowledge.knowledge_base.add_review(
                 user_id=user_id,
                 application_content=application_data,
                 review_content=response.get_content_as_string()
