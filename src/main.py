@@ -89,7 +89,6 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.api_route("/submit/", methods=["GET", "POST"])
-@app.api_route("/submit/", methods=["GET", "POST"])
 async def process_application(request: Request, application: ApplicationData = None):
     try:
         if request.method == "GET":
