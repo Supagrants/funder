@@ -88,7 +88,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 
-app.post("/submit")
+app.post("/submit/")
 async def process_application(application: ApplicationData, background_tasks: BackgroundTasks):
     try:
         # Parse the stringified application data
