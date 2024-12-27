@@ -139,7 +139,6 @@ async def process_application(request: Request, application: ApplicationData = N
                 text,
                 user_id,
                 funder_chat_id,  # Send to funder's chat
-                mongo=None,
                 reply_function=telegram_reply,
                 processing_id=message_id
             )
