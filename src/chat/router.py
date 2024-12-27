@@ -17,44 +17,71 @@ from tools.github_tools import GithubCommitStats
 from tools.perplexity_tools import PerplexitySearch
 
 # Constants remain the same as before
-ABOUT = """I am a Grant Application Assistant specializing in helping users complete funding applications. I analyze project details and provide guidance for Solana grant applications, ensuring applications are complete, compelling, and properly evaluated."""
+ABOUT = """I am a Grant Application Assistant that evaluates Solana grant applications. I analyze available project details and provide comprehensive reviews based on provided information, focusing on technical feasibility, innovation, and ecosystem impact. I evaluate what is presented without requesting additional information."""
 
-BACKGROUND = """I help evaluate grant applications by analyzing:
+BACKGROUND = """I evaluate grant applications using the following scoring framework, assessing only the information provided:
 
-Core Application Components (40 points):
-- Project Fundamentals (15 points):
-  * Project Name and Description
-  * Website and Online Presence
-  * Location and Contact Information
-  * Solana Integration
+            Core Application Components (40 points):
+            - Project Fundamentals (15 points):
+            * Project Name and Description (5 points)
+            * Website and Online Presence (3 points)
+            * Location and Contact Information (2 points)
+            * Solana Integration (5 points)
 
-- Technical Infrastructure (25 points):
-  * GitHub Repository Quality
-  * Technical Architecture
-  * Development Progress
-  * Open Source Status
+            - Technical Infrastructure (25 points):
+            * GitHub Repository Quality (7 points)
+            * Technical Architecture (7 points)
+            * Development Progress (6 points)
+            * Open Source Status (5 points)
 
-Project Impact & Innovation (30 points):
-- Market & Innovation (15 points):
-  * Problem Solution Fit
-  * Market Opportunity
-  * Technical Innovation
+            Project Impact & Innovation (30 points):
+            - Market & Innovation (15 points):
+            * Problem Solution Fit (5 points)
+            * Market Opportunity (5 points)
+            * Technical Innovation (5 points)
 
-- Public Good Impact (15 points):
-  * Community Benefit
-  * Ecosystem Contribution
-  * Accessibility
+            - Public Good Impact (15 points):
+            * Community Benefit (5 points)
+            * Ecosystem Contribution (5 points)
+            * Accessibility (5 points)
 
-Team & Execution (30 points):
-- Team Capability (15 points):
-  * Technical Expertise
-  * Track Record
-  * Team Completeness
+            Team & Execution (30 points):
+            - Team Capability (15 points):
+            * Technical Expertise (5 points)
+            * Track Record (5 points)
+            * Team Completeness (5 points)
 
-- Implementation Plan (15 points):
-  * Budget Allocation
-  * Development Roadmap
-  * Success Metrics"""
+            - Implementation Plan (15 points):
+            * Budget Allocation (5 points)
+            * Development Roadmap (5 points)
+            * Success Metrics (5 points)
+
+            Review Guidelines:
+            1. Evaluate only based on information provided in the application
+            2. Score each category based on available information
+            3. If information is missing for a category, score as 0 points
+            4. Provide specific feedback on strengths and areas that lack information
+            5. Focus on constructive evaluation of what is presented
+            6. Generate final score based on complete evaluation
+            7. Include brief justification for each scoring category
+
+            Output Format:
+            {
+            "scores": {
+                "project_fundamentals": {"score": X, "max": 15, "notes": "..."},
+                "technical_infrastructure": {"score": X, "max": 25, "notes": "..."},
+                "market_innovation": {"score": X, "max": 15, "notes": "..."},
+                "public_good_impact": {"score": X, "max": 15, "notes": "..."},
+                "team_capability": {"score": X, "max": 15, "notes": "..."},
+                "implementation_plan": {"score": X, "max": 15, "notes": "..."}
+            },
+            "total_score": X,
+            "max_score": 100,
+            "summary": "Overall evaluation summary...",
+            "key_strengths": ["strength1", "strength2"...],
+            "key_gaps": ["gap1", "gap2"...]
+            }"""
+
 
 @dataclass
 class ApplicationData:
@@ -109,36 +136,106 @@ class GrantReviewAgent:
     def _extract_application_sections(self, content: str) -> Dict[str, Any]:
         """Extract structured sections from application content"""
         sections = {
-            "project_name": "",
-            "website": "",
-            "location": "",
-            "contact_details": {},
-            "solana_account": "",
-            "funding_category": "",
-            "project_description": "",
-            "funding_amount": "",
-            "open_source": None,
-            "budget": {},
-            "metrics": {},
-            "funding_status": "",
-            "team": {},
-            "competitive_analysis": "",
-            "public_good_impact": "",
-            "technical_requirements": {}
+            # Core Application Components
+            "project_fundamentals": {
+                "name": "",
+                "website": "",
+                "location": "",
+                "solana_integration": ""
+            },
+            "technical_infrastructure": {
+                "github": "",
+                "architecture": "",
+                "progress": "",
+                "open_source": ""
+            },
+            # Project Impact & Innovation
+            "market_innovation": {
+                "problem_solution": "",
+                "market_opportunity": "",
+                "innovation": ""
+            },
+            "public_good_impact": {
+                "community_benefit": "",
+                "ecosystem_contribution": "",
+                "accessibility": ""
+            },
+            # Team & Execution
+            "team_capability": {
+                "expertise": "",
+                "track_record": "",
+                "completeness": ""
+            },
+            "implementation_plan": {
+                "budget": "",
+                "roadmap": "",
+                "metrics": ""
+            }
         }
         
-        # Add section extraction logic here
         try:
-            # Extract project name
+            # Project Fundamentals
             if "Company/Project Name:" in content:
-                sections["project_name"] = content.split("Company/Project Name:")[1].split("\n")[0].strip()
+                sections["project_fundamentals"]["name"] = content.split("Company/Project Name:")[1].split("\n")[0].strip()
             
-            # Extract project description
-            if "Project Description and Vision:" in content:
-                sections["project_description"] = content.split("Project Description and Vision:")[1].split("\n\n")[0].strip()
-            
-            # Add more section extractions as needed
-            
+            if "Website URL:" in content:
+                sections["project_fundamentals"]["website"] = content.split("Website URL:")[1].split("\n")[0].strip()
+                
+            if "Location Information" in content:
+                sections["project_fundamentals"]["location"] = content.split("Location Information")[1].split("\n")[0].strip()
+                
+            if "Solana Integration:" in content:
+                sections["project_fundamentals"]["solana_integration"] = content.split("Solana Integration:")[1].split("\n")[0].strip()
+
+            # Technical Infrastructure
+            if "Project GitHub Repository:" in content:
+                sections["technical_infrastructure"]["github"] = content.split("Project GitHub Repository:")[1].split("\n")[0].strip()
+                
+            if "Technical Architecture:" in content:
+                sections["technical_infrastructure"]["architecture"] = content.split("Technical Architecture:")[1].split("\n\n")[0].strip()
+                
+            if "Development Progress:" in content:
+                sections["technical_infrastructure"]["progress"] = content.split("Development Progress:")[1].split("\n\n")[0].strip()
+                
+            if "Open Source Status:" in content:
+                sections["technical_infrastructure"]["open_source"] = content.split("Open Source Status:")[1].split("\n")[0].strip()
+
+            # Market & Innovation
+            if "Problem Solution Fit:" in content:
+                sections["market_innovation"]["problem_solution"] = content.split("Problem Solution Fit:")[1].split("\n\n")[0].strip()
+                
+            if "Market Opportunity:" in content:
+                sections["market_innovation"]["market_opportunity"] = content.split("Market Opportunity:")[1].split("\n\n")[0].strip()
+                
+            if "Technical Innovation:" in content:
+                sections["market_innovation"]["innovation"] = content.split("Technical Innovation:")[1].split("\n\n")[0].strip()
+
+            # Public Good Impact
+            if "Community Benefit:" in content:
+                sections["public_good_impact"]["community_benefit"] = content.split("Community Benefit:")[1].split("\n\n")[0].strip()
+                
+            if "Ecosystem Contribution:" in content:
+                sections["public_good_impact"]["ecosystem_contribution"] = content.split("Ecosystem Contribution:")[1].split("\n\n")[0].strip()
+                
+            if "Accessibility:" in content:
+                sections["public_good_impact"]["accessibility"] = content.split("Accessibility:")[1].split("\n\n")[0].strip()
+
+            # Team Capability
+            if "Team Qualifications:" in content:
+                sections["team_capability"]["expertise"] = content.split("Team Qualifications:")[1].split("\n\n")[0].strip()
+                sections["team_capability"]["track_record"] = sections["team_capability"]["expertise"]  # Often combined in Team Qualifications
+                sections["team_capability"]["completeness"] = sections["team_capability"]["expertise"]  # Often combined in Team Qualifications
+
+            # Implementation Plan
+            if "Budget Proposal:" in content:
+                sections["implementation_plan"]["budget"] = content.split("Budget Proposal:")[1].split("\n\n")[0].strip()
+                
+            if "Development Roadmap:" in content:
+                sections["implementation_plan"]["roadmap"] = content.split("Development Roadmap:")[1].split("\n\n")[0].strip()
+                
+            if "Success Metrics:" in content:
+                sections["implementation_plan"]["metrics"] = content.split("Success Metrics:")[1].split("\n\n")[0].strip()
+                
         except Exception as e:
             self.logger.error(f"Error extracting sections: {str(e)}")
             
@@ -162,14 +259,19 @@ class GrantReviewAgent:
                 Application Content:
                 {app_data.content}
 
-                Please evaluate this application based on:
-                1. Technical Feasibility (25 points)
-                2. Team Capability (15 points)
-                3. Market Impact (15 points)
-                4. Public Good Value (15 points)
-                5. Resource Requirements (15 points)
+                 Please evaluate this application based on the scoring rubric in the background information:
+    
+                Core Application Components (40 points):
+                - Project Fundamentals (15 points)
+                - Technical Infrastructure (25 points)
                 
-                Provide a structured evaluation following the scoring rubric in the background information.
+                Project Impact & Innovation (30 points):
+                - Market & Innovation (15 points)
+                - Public Good Impact (15 points)
+                
+                Team & Execution (30 points):
+                - Team Capability (15 points)
+                - Implementation Plan (15 points)
                 """
             else:
                 context = f"Error: Unable to parse application data from message: {msg[:100]}..."
@@ -247,8 +349,7 @@ class GrantReviewAgent:
                 await knowledge.knowledge_base.add_review(
                     user_id=user_id,
                     application_content=msg,
-                    review_content=response_content,
-                    structured_data=structured_data
+                    review_content=response_content
                 )
 
             # Handle reply callback
