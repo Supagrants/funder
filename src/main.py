@@ -109,7 +109,7 @@ async def process_application(request: Request, application: ApplicationData = N
             original_chat_id = app_data['meta_data'].get('chat_id') if 'meta_data' in app_data else None
             message_id = app_data.get('id')
 
-            funder_chat_id = 2322529093  # Hardcoded funder's chat ID
+            funder_chat_id = 1002322529093  # Hardcoded funder's chat ID
             logger.info(f"User ID: {user_id}, Original Chat ID: {original_chat_id}, Funder Chat ID: {funder_chat_id}, Message ID: {message_id}")
 
             if not user_id:

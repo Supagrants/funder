@@ -8,6 +8,9 @@ pydantic
 uvicorn
 fastapi
 
+# tools
+PyGithub
+
 # agents_tasks service
 openai
 anthropic
