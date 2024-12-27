@@ -351,9 +351,11 @@ class GrantReviewAgent:
 
     def _initialize_agent(self, user_id: str, chat_id: str) -> TokenLimitAgent:
         """Initialize the token limit agent with necessary configuration"""
-        return TokenLimitAgent(
-            name="Grant Review Agent",
-            model=get_llm_model(),
+        print("Initializing agent function ")
+        try:
+            agent = TokenLimitAgent(
+                name="Grant Review Agent",
+                model=get_llm_model(),
             session_id=f"grant_review_{user_id}_{chat_id}",
             user_id=user_id,
             memory=AgentMemory(
@@ -380,8 +382,14 @@ class GrantReviewAgent:
                 GithubCommitStats(),
                 PerplexitySearch()
             ],
-            telemetry=False,
-        )
+                telemetry=False,
+            )
+            print("Agent initialized")
+            return agent
+        except Exception as e:
+            print(f"Error initializing agent: {str(e)}")
+            return None
+    
 
     async def next_action(
         self,
