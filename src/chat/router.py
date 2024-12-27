@@ -242,37 +242,97 @@ class GrantReviewAgent:
         return sections
         
     async def _create_context(self, msg: str, user_id: str) -> Tuple[str, Optional[Dict[str, Any]]]:
-        """Create review context based on message type"""
+        """Create review context based on message type with tool integration"""
         structured_data = None
         
         if "New Grant Application Received" in msg:
             app_data = self._parse_application_data(msg)
             if app_data:
                 structured_data = self._extract_application_sections(app_data.content)
-                context = f"""
-                New Grant Application Review:
                 
-                Applicant ID: {user_id}
-                Application ID: {app_data.id}
-                Submission Date: {app_data.created_at}
-                
-                Application Content:
-                {app_data.content}
+                # Extract GitHub repository if available
+                github_analysis = ""
+                if structured_data["technical_infrastructure"]["github"]:
+                    try:
+                        repo_url = structured_data["technical_infrastructure"]["github"]
+                        # Extract owner/repo format from URL
+                        repo_parts = repo_url.replace("https://github.com/", "").replace(".git", "").split('/')
+                        if len(repo_parts) >= 2:
+                            repo_name = f"{repo_parts[-2]}/{repo_parts[-1]}"
+                            github_tool = GithubCommitStats()
+                            github_stats_str = await github_tool.get_monthly_commit_count(repo_name)
+                            github_stats = json.loads(github_stats_str)
+                            
+                            if 'error' not in github_stats:
+                                github_analysis = f"""
+                                GitHub Repository Analysis:
+                                - Repository: {github_stats['repository']}
+                                - Commit Activity (Last 30 Days): {github_stats['commit_count']} commits
+                                - Analysis Period: {github_stats['since']}
+                                """
+                            else:
+                                github_analysis = f"\nGitHub Analysis: Repository analysis failed - {github_stats['error']}"
+                    except Exception as e:
+                        self.logger.error(f"Error analyzing GitHub repository: {str(e)}")
+                        github_analysis = "\nGitHub Analysis: Unable to analyze repository activity"
 
-                 Please evaluate this application based on the scoring rubric in the background information:
-    
-                Core Application Components (40 points):
-                - Project Fundamentals (15 points)
-                - Technical Infrastructure (25 points)
-                
-                Project Impact & Innovation (30 points):
-                - Market & Innovation (15 points)
-                - Public Good Impact (15 points)
-                
-                Team & Execution (30 points):
-                - Team Capability (15 points)
-                - Implementation Plan (15 points)
-                """
+                # Perform market research using Perplexity
+                market_analysis = ""
+                if structured_data["market_innovation"]["problem_solution"]:
+                    try:
+                        search_tool = PerplexitySearch()
+                        market_query = f"Analyze market opportunity and competition for: {structured_data['market_innovation']['problem_solution']}. Focus on market size, competitors, and growth potential."
+                        market_results = await search_tool.perplexity_search(market_query)
+                        
+                        market_analysis = f"""
+                            Market Research Analysis:
+                            {market_results}
+                            """
+                    except Exception as e:
+                        self.logger.error(f"Error performing market research: {str(e)}")
+                        market_analysis = "\nMarket Analysis: Unable to retrieve market insights"
+
+                context = f"""
+            New Grant Application Review:
+
+            Applicant ID: {user_id}
+            Application ID: {app_data.id}
+            Submission Date: {app_data.created_at}
+
+            Application Content:
+            {app_data.content}
+
+            Technical Analysis:{github_analysis}
+
+            Market Research:{market_analysis}
+
+            Please evaluate this application based on the scoring rubric in the background information:
+
+            Core Application Components (40 points):
+            - Project Fundamentals (15 points)
+            - Technical Infrastructure (25 points)
+
+            Project Impact & Innovation (30 points):
+            - Market & Innovation (15 points)
+            - Public Good Impact (15 points)
+
+            Team & Execution (30 points):
+            - Team Capability (15 points)
+            - Implementation Plan (15 points)
+
+            Evaluation Notes:
+            1. For Technical Infrastructure scoring:
+            - Consider the GitHub commit activity as an indicator of development progress
+            - High activity (>30 commits/month) suggests active development
+            - Low activity (<10 commits/month) may indicate limited progress
+
+            2. For Market & Innovation scoring:
+            - Use the market research analysis to validate market opportunity claims
+            - Consider market size and competition information
+            - Evaluate growth potential based on market insights
+
+            Generate your evaluation in the required JSON format with specific notes for each category.
+            """
             else:
                 context = f"Error: Unable to parse application data from message: {msg[:100]}..."
         else:
@@ -286,6 +346,8 @@ class GrantReviewAgent:
             """
             
         return context, structured_data
+    
+    
 
     def _initialize_agent(self, user_id: str, chat_id: str) -> TokenLimitAgent:
         """Initialize the token limit agent with necessary configuration"""

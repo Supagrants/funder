@@ -9,7 +9,7 @@ import traceback
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-
+from typing import Optional, Dict
 import uvicorn
 from fastapi import FastAPI, Request, BackgroundTasks
 from pydantic import BaseModel
@@ -92,7 +92,6 @@ app = FastAPI(lifespan=lifespan)
 async def process_application(request: Request, application: ApplicationData = None):
     try:
         if request.method == "GET":
-            # Respond with a simple message for GET requests
             return {"status": "success", "message": "GET request received", "data": None}
 
         if request.method == "POST":
@@ -114,43 +113,86 @@ async def process_application(request: Request, application: ApplicationData = N
             logger.info(f"User ID: {user_id}, Original Chat ID: {original_chat_id}, Funder Chat ID: {funder_chat_id}, Message ID: {message_id}")
 
             if not user_id:
-                logger.error("Missing user_id in application")
+                error_msg = "Missing user_id in application"
+                logger.error(error_msg)
+                await notify_funder_error(funder_chat_id, error_msg, app_data)
                 return {"status": "error", "message": "Invalid application data"}
 
             # Format application text for funder
-            text = (
-                f"📝 New Grant Application Received\n\n"
-                f"From User ID: {user_id}\n"
-                f"Application ID: {message_id}\n"
-                f"Document: {app_data['name']}\n"
-                f"Content: {app_data['content']}...\n" 
-                f"Created: {app_data['created_at']}\n"
-                f"Type: {app_data['document_type']}\n"
-            )
+            text = format_application_text(app_data, user_id, message_id)
             logger.info(f"Formatted text for next action: {text}")
 
-            # Define a reply function for the funder
-            async def telegram_reply(msg, reply_markup=None):
-                await tg.send_message_with_retry(funder_chat_id, msg, reply_markup=reply_markup)
+            try:
+                # Define a reply function for the funder
+                async def telegram_reply(msg, reply_markup=None):
+                    await tg.send_message_with_retry(funder_chat_id, msg, reply_markup=reply_markup)
 
-            router = GrantReviewAgent()
-            # Call the router's next_action function for the funder
-            await router.next_action(
-                text,
-                user_id,
-                funder_chat_id,  # Send to funder's chat
-                reply_function=telegram_reply,
-                processing_id=message_id
-            )
+                router = GrantReviewAgent()
+                # Call the router's next_action function for the funder
+                review_result = await router.next_action(
+                    text,
+                    user_id,
+                    funder_chat_id,  # Send to funder's chat
+                    reply_function=telegram_reply,
+                    processing_id=message_id
+                )
 
-            return {"status": "success", "message": "Application received and sent to the funder"}
+                if not review_result:
+                    raise Exception("Review generation failed - empty response")
+
+                return {"status": "success", "message": "Application received and review generated"}
+
+            except Exception as review_error:
+                error_msg = f"⚠️ Error Generating Review:\n\nApplication ID: {message_id}\nError: {str(review_error)}"
+                logger.error(f"Review generation failed: {str(review_error)}")
+                await notify_funder_error(funder_chat_id, error_msg, app_data)
+                return {"status": "error", "message": "Failed to generate review"}
 
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse application JSON: {str(e)}")
+        error_msg = f"Failed to parse application JSON: {str(e)}"
+        logger.error(error_msg)
+        await notify_funder_error(funder_chat_id, error_msg, None)
         return {"status": "error", "message": "Invalid application format"}
     except Exception as e:
-        logger.error(f"Error processing application: {str(e)}")
+        error_msg = f"Error processing application: {str(e)}"
+        logger.error(error_msg)
+        await notify_funder_error(funder_chat_id, error_msg, None)
         return {"status": "error", "message": "Internal server error"}
+
+async def notify_funder_error(funder_chat_id: int, error_message: str, app_data: Optional[Dict] = None):
+    """Send error notification to funder's chat"""
+    try:
+        error_text = f"""
+    ⚠️ Application Processing Error
+
+    Error Details:
+    {error_message}
+
+    """
+        if app_data:
+                error_text += f"""
+    Application Information:
+    - ID: {app_data.get('id', 'N/A')}
+    - Name: {app_data.get('name', 'N/A')}
+    - Type: {app_data.get('document_type', 'N/A')}
+    - Created: {app_data.get('created_at', 'N/A')}
+    """
+
+        await tg.send_message_with_retry(funder_chat_id, error_text)
+    except Exception as e:
+        logger.error(f"Failed to send error notification to funder: {str(e)}")
+
+def format_application_text(app_data: Dict, user_id: str, message_id: str) -> str:
+    """Format application text for review"""
+    return (
+        f"📝 New Grant Application Received\n\n"
+        f"From User ID: {user_id}\n"
+        f"Application ID: {message_id}\n"
+        f"Document: {app_data['name']}\n"
+        f"Content: {app_data['content']}\n"
+        f"Created: {app_data['created_at']}\n"
+        f"Type: {app_data['document_type']}\n"
+    )
 
 if __name__ == "__main__":
     uvicorn.run(
