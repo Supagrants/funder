@@ -396,35 +396,89 @@ class GrantReviewAgent:
 
         try:
             # Create context and get structured data
+            self.logger.info("Creating context...")
             context, structured_data = await self._create_context(msg, user_id)
             
+            if not context:
+                raise ValueError("Failed to create context for review")
+            
             # Initialize agent
+            self.logger.info("Initializing agent...")
             agent = self._initialize_agent(user_id, chat_id)
             
             # Process review
-            print("Processing grant review with context")
-            response: RunResponse = agent.run(context)
-            response_content = response.get_content_as_string()
-            print(response_content)
+            self.logger.info("Processing grant review with context")
+            try:
+                response: RunResponse = agent.run(context)
+                if not response:
+                    raise ValueError("LLM returned empty response")
+                    
+                response_content = response.get_content_as_string()
+                self.logger.info("Successfully generated review content")
+                
+                # Validate response format
+                try:
+                    # Try to parse as JSON to verify format
+                    json_content = json.loads(response_content)
+                    required_keys = ["scores", "total_score", "max_score", "summary"]
+                    missing_keys = [key for key in required_keys if key not in json_content]
+                    
+                    if missing_keys:
+                        raise ValueError(f"Response missing required keys: {missing_keys}")
+                        
+                except json.JSONDecodeError:
+                    self.logger.error("Response is not in valid JSON format")
+                    raise ValueError("Review response is not in the required JSON format")
+                    
+            except Exception as llm_error:
+                self.logger.error(f"LLM processing error: {str(llm_error)}")
+                error_msg = (
+                    "⚠️ Error Generating Review\n\n"
+                    f"Failed to process application review due to:\n{str(llm_error)}\n\n"
+                    "Please retry the review process."
+                )
+                if reply_function:
+                    await reply_function(error_msg)
+                raise
+
             # Save review if new application
             if "New Grant Application Received" in msg and structured_data:
-                await knowledge.knowledge_base.add_review(
-                    user_id=user_id,
-                    application_content=msg,
-                    review_content=response_content
-                )
+                self.logger.info("Saving review to knowledge base...")
+                try:
+                    await knowledge.knowledge_base.add_review(
+                        user_id=user_id,
+                        application_content=msg,
+                        review_content=response_content
+                    )
+                    self.logger.info("Successfully saved review")
+                except Exception as save_error:
+                    self.logger.error(f"Failed to save review: {str(save_error)}")
+                    # Continue execution even if save fails
 
-            print("Saving review")
             # Handle reply callback
             if reply_function:
-                await reply_function(response_content)
+                try:
+                    await reply_function(response_content)
+                    self.logger.info("Successfully sent review to chat")
+                except Exception as reply_error:
+                    self.logger.error(f"Failed to send reply: {str(reply_error)}")
+                    raise
 
-            print("Returning response")
             return response_content
 
         except Exception as e:
             error_msg = f"Error during grant review for user {user_id}: {str(e)}"
             self.logger.error(error_msg)
             if reply_function:
-                await reply_function(f"An error occurred while processing the application: {str(e)}")
+                try:
+                    error_response = (
+                        "⚠️ Grant Review Error\n\n"
+                        f"Application ID: {processing_id}\n"
+                        f"Error: {str(e)}\n\n"
+                        "The system encountered an error while processing this grant application. "
+                        "Please check the application data and try again."
+                    )
+                    await reply_function(error_response)
+                except Exception as reply_error:
+                    self.logger.error(f"Failed to send error message: {str(reply_error)}")
             raise
