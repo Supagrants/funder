@@ -45,7 +45,6 @@ def init_knowledge_base() -> Optional[CustomKnowledgeBase]:
         
         # Initialize knowledge base
         knowledge_base = CustomKnowledgeBase(
-            sources=[],  # Can be extended with additional sources
             vector_db=vector_db
         )
         logger.info("Knowledge base initialized successfully")
