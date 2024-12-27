@@ -347,7 +347,7 @@ class GrantReviewAgent:
             
         return context, structured_data
     
-    
+
 
     def _initialize_agent(self, user_id: str, chat_id: str) -> TokenLimitAgent:
         """Initialize the token limit agent with necessary configuration"""
@@ -402,10 +402,10 @@ class GrantReviewAgent:
             agent = self._initialize_agent(user_id, chat_id)
             
             # Process review
-            self.logger.info("Processing grant review with context")
+            print("Processing grant review with context")
             response: RunResponse = agent.run(context)
             response_content = response.get_content_as_string()
-            
+            print(response_content)
             # Save review if new application
             if "New Grant Application Received" in msg and structured_data:
                 await knowledge.knowledge_base.add_review(
@@ -414,10 +414,12 @@ class GrantReviewAgent:
                     review_content=response_content
                 )
 
+            print("Saving review")
             # Handle reply callback
             if reply_function:
                 await reply_function(response_content)
 
+            print("Returning response")
             return response_content
 
         except Exception as e:
