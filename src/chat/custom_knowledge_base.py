@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 class CustomKnowledgeBase(AgentKnowledge):
     """Knowledge base for managing grant reviews."""
 
-    def __init__(self, sources: List[AgentKnowledge], vector_db: PgVector):
-        super().__init__(sources=sources, vector_db=vector_db)
-        self.table_name = "ai.grant_reviews"
+    def __init__(self, vector_db: PgVector):
+        super().__init__(vector_db=vector_db)
 
     def _format_application_data(self, application_content: Dict[str, Any]) -> Dict[str, Any]:
         """Format application data for storage"""
@@ -47,6 +46,7 @@ class CustomKnowledgeBase(AgentKnowledge):
         Returns:
             str: Content hash of the saved review
         """
+        table_name = "grant_reviews"
         try:
             # Get embedding for the review content
             embedder = get_embedder()
@@ -81,7 +81,7 @@ class CustomKnowledgeBase(AgentKnowledge):
                         usage,
                         filters
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """.format(self.table_name)
+                    """.format(table_name)
                     
                     values = (
                         content_hash,                      # id
@@ -114,7 +114,10 @@ class CustomKnowledgeBase(AgentKnowledge):
 
         Returns:
             List[Dict]: List of reviews with their details
+
         """
+
+        table_name = "grant_reviews"
         try:
             with psycopg2.connect(self.vector_db.db_url) as conn:
                 with conn.cursor() as cur:
@@ -130,7 +133,7 @@ class CustomKnowledgeBase(AgentKnowledge):
                     FROM {} 
                     WHERE meta_data->>'user_id' = %s 
                     ORDER BY created_at DESC
-                    """.format(self.table_name)
+                    """.format(table_name)
                     
                     cur.execute(query, (user_id,))
                     reviews = cur.fetchall()
