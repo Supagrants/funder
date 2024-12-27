@@ -351,44 +351,85 @@ class GrantReviewAgent:
 
     def _initialize_agent(self, user_id: str, chat_id: str) -> TokenLimitAgent:
         """Initialize the token limit agent with necessary configuration"""
-        print("Initializing agent function ")
+        self.logger.info("Initializing agent function")
         try:
-            agent = TokenLimitAgent(
-                name="Grant Review Agent",
-                model=get_llm_model(),
-            session_id=f"grant_review_{user_id}_{chat_id}",
-            user_id=user_id,
-            memory=AgentMemory(
-                db=PgMemoryDb(
-                    table_name="grant_agent_memory",
-                    db_url=POSTGRES_CONNECTION
-                ),
+            # First validate all required components
+            if not POSTGRES_CONNECTION:
+                raise ValueError("POSTGRES_CONNECTION is not configured")
+                
+            # Get LLM model first to isolate potential issues
+            model = get_llm_model()
+            self.logger.info("LLM model initialized successfully")
+            
+            # Initialize memory DB connection first
+            memory_db = PgMemoryDb(
+                table_name="grant_agent_memory",
+                db_url=POSTGRES_CONNECTION
+            )
+            self.logger.info("Memory DB initialized successfully")
+            
+            # Initialize storage
+            storage = PgAgentStorage(
+                table_name="grant_agent_sessions",
+                db_url=POSTGRES_CONNECTION
+            )
+            self.logger.info("Storage initialized successfully")
+            
+            # Initialize memory
+            memory = AgentMemory(
+                db=memory_db,
                 create_user_memories=True,
                 create_session_summary=True,
                 num_memories=10,
-            ),
-            storage=PgAgentStorage(
-                table_name="grant_agent_sessions",
-                db_url=POSTGRES_CONNECTION
-            ),
-            num_history_responses=MAX_HISTORY,
-            description=f"{ABOUT}\n\nBackground Information:\n{BACKGROUND}",
-            add_datetime_to_instructions=True,
-            add_history_to_messages=True,
-            read_chat_history=True,
-            knowledge=knowledge.knowledge_base,
-            search_knowledge=True,
-            tools=[
-                GithubCommitStats(),
-                PerplexitySearch()
-            ],
+            )
+            self.logger.info("Agent memory initialized successfully")
+            
+            # Initialize tools with error handling
+            tools = []
+            try:
+                github_tool = GithubCommitStats()
+                tools.append(github_tool)
+                self.logger.info("GitHub tool initialized successfully")
+            except Exception as github_error:
+                self.logger.error(f"Failed to initialize GitHub tool: {str(github_error)}")
+                
+            try:
+                perplexity_tool = PerplexitySearch()
+                tools.append(perplexity_tool)
+                self.logger.info("Perplexity tool initialized successfully")
+            except Exception as perplexity_error:
+                self.logger.error(f"Failed to initialize Perplexity tool: {str(perplexity_error)}")
+
+            # Initialize the agent with all components
+            agent = TokenLimitAgent(
+                name="Grant Review Agent",
+                model=model,
+                session_id=f"grant_review_{user_id}_{chat_id}",
+                user_id=user_id,
+                memory=memory,
+                storage=storage,
+                num_history_responses=MAX_HISTORY,
+                description=f"{ABOUT}\n\nBackground Information:\n{BACKGROUND}",
+                add_datetime_to_instructions=True,
+                add_history_to_messages=True,
+                read_chat_history=True,
+                knowledge=knowledge.knowledge_base,
+                search_knowledge=True,
+                tools=tools,
                 telemetry=False,
             )
-            print("Agent initialized")
+            
+            self.logger.info("Agent initialized successfully")
             return agent
+            
         except Exception as e:
-            print(f"Error initializing agent: {str(e)}")
-            return None
+            error_msg = f"Error initializing agent: {str(e)}\n"
+            error_msg += f"Error type: {type(e).__name__}\n"
+            if hasattr(e, '__traceback__'):
+                import traceback
+                error_msg += f"Traceback:\n{''.join(traceback.format_tb(e.__traceback__))}"
+            self.logger.error(error_msg)
+            raise Exception(f"Failed to initialize agent: {str(e)}") from e
     
 
     async def next_action(
@@ -410,9 +451,21 @@ class GrantReviewAgent:
             if not context:
                 raise ValueError("Failed to create context for review")
             
-            # Initialize agent
+            # Initialize agent with better error handling
             self.logger.info("Initializing agent...")
-            agent = self._initialize_agent(user_id, chat_id)
+            try:
+                agent = self._initialize_agent(user_id, chat_id)
+                if not agent:
+                    raise ValueError("Agent initialization returned None")
+            except Exception as init_error:
+                error_msg = (
+                    "⚠️ System Configuration Error\n\n"
+                    f"Failed to initialize review system:\n{str(init_error)}\n\n"
+                    "This is a system configuration issue. Please contact support."
+                )
+                if reply_function:
+                    await reply_function(error_msg)
+                raise Exception(f"Agent initialization failed: {str(init_error)}") from init_error
             
             # Process review
             self.logger.info("Processing grant review with context")
@@ -424,55 +477,29 @@ class GrantReviewAgent:
                 response_content = response.get_content_as_string()
                 self.logger.info("Successfully generated review content")
                 
-                # Validate response format
-                try:
-                    # Try to parse as JSON to verify format
-                    json_content = json.loads(response_content)
-                    required_keys = ["scores", "total_score", "max_score", "summary"]
-                    missing_keys = [key for key in required_keys if key not in json_content]
-                    
-                    if missing_keys:
-                        raise ValueError(f"Response missing required keys: {missing_keys}")
-                        
-                except json.JSONDecodeError:
-                    self.logger.error("Response is not in valid JSON format")
-                    raise ValueError("Review response is not in the required JSON format")
-                    
-            except Exception as llm_error:
-                self.logger.error(f"LLM processing error: {str(llm_error)}")
-                error_msg = (
-                    "⚠️ Error Generating Review\n\n"
-                    f"Failed to process application review due to:\n{str(llm_error)}\n\n"
-                    "Please retry the review process."
-                )
-                if reply_function:
-                    await reply_function(error_msg)
-                raise
-
-            # Save review if new application
-            if "New Grant Application Received" in msg and structured_data:
-                self.logger.info("Saving review to knowledge base...")
-                try:
+                # Save review if new application
+                if "New Grant Application Received" in msg and structured_data:
                     await knowledge.knowledge_base.add_review(
                         user_id=user_id,
                         application_content=msg,
                         review_content=response_content
                     )
-                    self.logger.info("Successfully saved review")
-                except Exception as save_error:
-                    self.logger.error(f"Failed to save review: {str(save_error)}")
-                    # Continue execution even if save fails
 
-            # Handle reply callback
-            if reply_function:
-                try:
+                # Handle reply callback
+                if reply_function:
                     await reply_function(response_content)
-                    self.logger.info("Successfully sent review to chat")
-                except Exception as reply_error:
-                    self.logger.error(f"Failed to send reply: {str(reply_error)}")
-                    raise
 
-            return response_content
+                return response_content
+
+            except Exception as process_error:
+                error_msg = (
+                    "⚠️ Review Generation Error\n\n"
+                    f"Failed to process review:\n{str(process_error)}\n\n"
+                    "Please try submitting the application again."
+                )
+                if reply_function:
+                    await reply_function(error_msg)
+                raise Exception(f"Review processing failed: {str(process_error)}") from process_error
 
         except Exception as e:
             error_msg = f"Error during grant review for user {user_id}: {str(e)}"
