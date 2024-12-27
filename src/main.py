@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from telegram.ext import Application
 from dotenv import load_dotenv
 import json
-from chat import router, knowledge
+from chat.router import GrantReviewAgent
 from utils.telegram_helper import TelegramHelper
 from utils.logging_helper import setup_logging
 from config import TELEGRAM_BOT, TELEGRAM_BOT_HANDLE
@@ -123,7 +123,7 @@ async def process_application(request: Request, application: ApplicationData = N
                 f"From User ID: {user_id}\n"
                 f"Application ID: {message_id}\n"
                 f"Document: {app_data['name']}\n"
-                f"Content: {app_data['content'][:500]}...\n"  # First 500 chars
+                f"Content: {app_data['content']}...\n" 
                 f"Created: {app_data['created_at']}\n"
                 f"Type: {app_data['document_type']}\n"
             )
@@ -133,21 +133,15 @@ async def process_application(request: Request, application: ApplicationData = N
             async def telegram_reply(msg, reply_markup=None):
                 await tg.send_message_with_retry(funder_chat_id, msg, reply_markup=reply_markup)
 
-            # Prepare parameters for next_action
-            params = {
-                "user": user_id,
-                "chat_id": funder_chat_id,  # Route to funder's chat
-                "message_id": message_id
-            }
-
+            router = GrantReviewAgent()
             # Call the router's next_action function for the funder
             await router.next_action(
                 text,
-                params['user'],
-                params['chat_id'],  # Send to funder's chat
+                user_id,
+                funder_chat_id,  # Send to funder's chat
                 mongo=None,
                 reply_function=telegram_reply,
-                processing_id=params['message_id']
+                processing_id=message_id
             )
 
             return {"status": "success", "message": "Application received and sent to the funder"}
